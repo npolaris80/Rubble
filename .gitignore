@@ -1,0 +1,5 @@
+#ignore python notebooks
+*.ipynb
+
+#ignore the data folder\
+data/
