@@ -1,7 +1,9 @@
 import os
 import pandas as pd
+from glob import glob
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.decomposition import NMF, LatentDirichletAllocation
+
 
 def display_topics(model, feature_names, no_top_words, display_output=True):
     topic_dict = {}
@@ -41,22 +43,62 @@ def run_lda(documents, num_features, num_topics):
     # Run LDA
     lda_decomp = LatentDirichletAllocation(n_topics=num_topics, max_iter=5, learning_method='online',
                                            learning_offset=50., random_state=0).fit(tf)
-    return lda_decomp, tfidf_feature_names
-
-#parameters
-dir = './data'
-documents = create_corpus(dir)
-
-num_features = 100
-num_topics = 3
-num_top_words = 10
+    return lda_decomp, tf_feature_names
 
 
-nmf_decomp, tfidf_feature_names = run_nmf(documents, num_features, num_topics)
-nmf_topics = display_topics(nmf_decomp, tfidf_feature_names, num_top_words)
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--multiperiod', action='store_true', help='run multiperiod LDA topic detection')
+    args = vars(parser.parse_args())
 
-lda_decomp, tf_feature_names =run_lda(documents, num_features, num_topics)
-lda_topics = display_topics(lda_decomp, tf_feature_names, num_top_words)
+    #if args['multiperiod']:
+    if True:
+        print('running multiperiod')
+        datadir = '../Weng/rumba/fed/fedminutes'
+        fed_files = glob(os.path.join(datadir, '*.htm'))
+        filenames = pd.DataFrame(data=fed_files,
+                                 index=[x.split('monetary')[1].split('.htm')[0][:6] for x in fed_files],
+                                 columns=['colname_file'])
+
+        assert len(filenames.columns) == 1
+        doc_dict = {}
+        for fileindex in sorted(set(filenames.index))[0:3]:  #TODO !!!!CHANGE THIS 0:3 indexing
+            documents = []
+            for tfilename in filenames.loc[fileindex, filenames.columns[0]]:
+                with open(tfilename, 'r') as f:
+                    fread = f.read()
+                documents.append(fread)
+            doc_dict[fileindex] = documents
+
+        topic_dict = {}
+        for ky in doc_dict.keys():
+            try:
+                lda_decomp, tf_feature_names = run_lda(doc_dict[ky], 10, 3)
+                lda_topics = display_topics(lda_decomp, tf_feature_names, 10, display_output=False)
+            except ValueError as err:
+                print(str(err) + ' on date {}'.format(ky))
+                lda_topics = err
+            topic_dict[ky] = lda_topics
 
 
-#TODO: Use PMI code (Gensim?) to select most coherent topics?
+    else:
+        print('running singleperiod')
+        #parameters
+        dir = './data'
+        documents = create_corpus(dir)
+
+        num_features = 100
+        num_topics = 3
+        num_top_words = 10
+
+
+        nmf_decomp, tfidf_feature_names = run_nmf(documents, num_features, num_topics)
+        nmf_topics = display_topics(nmf_decomp, tfidf_feature_names, num_top_words)
+
+        lda_decomp, tf_feature_names =run_lda(documents, num_features, num_topics)
+        lda_topics = display_topics(lda_decomp, tf_feature_names, num_top_words)
+
+
+    #TODO: Use PMI code (Gensim?) to select most coherent topics?
+
